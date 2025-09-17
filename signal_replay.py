@@ -15,6 +15,8 @@ import struct, zlib
 
 import ctypes
 
+from discover import discovery_real_lidar_interface
+
 
 class InnoCommonHeader(ctypes.LittleEndianStructure):
     _pack_ = 1
@@ -514,11 +516,8 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     p.add_argument("--backoff", type=float, default=0.75, help="Initial backoff seconds for retries")
     
     # LiDAR-related options
-    p.add_argument("--lidar-mode", action="store_true", help="Enable LiDAR-driven replay (timestamps from LiDAR)")
+    p.add_argument("--lidar-mode", choices=["real", "fake"], help="Choose lidar mode: 'real' = auto-discover real lidar NIC, 'fake' = loopback lo")
     p.add_argument("--lidar-port", type=int, default=2368, help="UDP port for LiDAR data (default: 2368)")
-    p.add_argument("--lidar-file", help="Path to binary LiDAR file instead of UDP (for testing)")
-    p.add_argument("--lidar-bind", default="0.0.0.0", help="Bind address for UDP socket (default: 0.0.0.0)")
-    p.add_argument("--lidar-timeout", type=float, default=1.0, help="UDP socket timeout in seconds")
     
     # L2 capture options
     p.add_argument("--l2-iface", help="Network interface for L2 packet capture (e.g., eth0)")
@@ -549,11 +548,24 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
 
     # ---- LiDAR source with callback ----
+    if args.lidar_mode == "real":
+        l2_iface = discovery_real_lidar_interface()
+        # check interface validity
+        if not l2_iface:
+            logging.error("Failed to discover real LiDAR interface. ")
+            return 2
+    elif args.lidar_mode == "fake":
+        l2_iface = "vethd85986f"
+    else:
+        logging.error("Please specify --lidar-mode as 'real' or 'fake'.")
+        return 2
+
+    logging.info(f"Using LiDAR interface: {l2_iface}")
     source = L2PcapTimeSource(
-        iface=args.l2_iface,
+        iface=l2_iface,
         udp_port=args.lidar_port,
         bpf=args.l2_bpf,
-        sample_rate= 2000,
+        sample_rate= 500,
     )
     
     try:
