@@ -106,9 +106,8 @@ sudo python3 signal_replay.py \
 | `--dry-run` | 只打印将要发送的数据，不实际 POST |
 | `--log-level` | 日志级别：`DEBUG/INFO/WARNING/ERROR` |
 | `--retries` / `--backoff` | 发送失败重试次数与首个回退秒数 |
-| `--lidar-mode` | `real`（自动发现真实网卡）或 `fake`（自动发现测试子网网卡） |
-| `--lidar-port` | LiDAR UDP 端口，真实常见为 `2368`，仿真例子为 `8011` |
-| `--l2-iface` | 指定抓包网卡（通常**不需要**，脚本会根据 `--lidar-mode` 自动发现） |
+| `--lidar-mode` |**必填** `real`（自动发现真实网卡）或 `fake`（自动发现测试子网网卡） |
+| `--lidar-port` |**必填** LiDAR UDP 端口，真实常见为 `2368`，仿真例子为 `8011` |
 | `--l2-bpf` | 自定义 BPF 过滤表达式（默认 `udp and port <lidar-port>`） |
 
 > 代码参考：`parse_args()` 与 `L2PcapTimeSource` 的实现。
@@ -117,13 +116,9 @@ sudo python3 signal_replay.py \
 
 ## NDJSON 格式
 
-文件为一行一条 JSON，支持两种等价结构：
+文件为一行一条 JSON，支持结构：
 ```json
 {"type":"phase","ts_ms":1736940005123,"data":[{"phase":1,"state":{"veh":"G","ped":"NA"}}]}
-```
-或
-```json
-{"type":"phase","ts_ms":1736940005123,"phases":[{"phase":1,"veh":"G","ped":"NA"}]}
 ```
 
 字段约束：

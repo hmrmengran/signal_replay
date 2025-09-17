@@ -574,7 +574,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     try:
         ctrl.start_lidar_match_stream(args.file, source, tolerance_ms=50)
         logging.info("LiDAR-match stream started. Press Ctrl-C to stop.")
-        # 主线程阻塞，直到用户中断
+        # main thread just sleeps
         while True:
             time.sleep(0.5)
     except KeyboardInterrupt:
