@@ -15,7 +15,8 @@ import struct, zlib
 
 import ctypes
 
-from discover import discovery_real_lidar_interface
+from discover_live_lidar import discovery_live_lidar_interface
+from discover_fake_lidar import discovery_fake_lidar_interface
 
 
 class InnoCommonHeader(ctypes.LittleEndianStructure):
@@ -320,7 +321,7 @@ class ReplayController:
 
                 snap = self._current
                 diff = lidar_ts_ms - snap.ts_ms
-                logging.info("[on_ts] Lidar & NDJSON  diff=%dms", diff)
+                logging.debug("[on_ts] Lidar & NDJSON diff = %d ms", diff)
 
                 if abs(diff) <= self._tolerance_ms:
                 # if True:
@@ -546,16 +547,18 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     # ---- LiDAR source with callback ----
     if args.lidar_mode == "real":
-        l2_iface = discovery_real_lidar_interface()
+        l2_iface = discovery_live_lidar_interface()
         # check interface validity
         if not l2_iface:
             logging.error("Failed to discover real LiDAR interface. ")
             return 2
     elif args.lidar_mode == "fake":
-        if not args.l2_iface:
-            logging.error("Please specify --l2-iface for fake LiDAR mode.")
+        l2_iface = discovery_fake_lidar_interface()
+        if not l2_iface:
+            logging.error("Failed to discover fake LiDAR interface. ")
             return 2
-        l2_iface = args.l2_iface
+        else:
+            logging.info(f"Using fake LiDAR interface: {l2_iface}")
     else:
         logging.error("Please specify --lidar-mode as 'real' or 'fake'.")
         return 2

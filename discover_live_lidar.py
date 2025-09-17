@@ -49,7 +49,7 @@ def dump_lidars(lidars):
     for lidar in lidars:
         print(lidar)
 
-def discovery_real_lidar_interface() -> Optional[str]:
+def discovery_live_lidar_interface() -> Optional[str]:
     """
     遍历所有非 lo 网卡，尝试发现 LiDAR。
     如果发现成功，返回网卡名称（例如 'eno1'），否则返回 None。
@@ -64,13 +64,8 @@ def discovery_real_lidar_interface() -> Optional[str]:
     return None
 
 if __name__ == "__main__":
-    # interfaces = get_interfaces()
-    # for interface in interfaces:
-    #     print(f"Discovering Lidar on {interface['name']}")
-    #     # dump_lidars(discover_lidars(interface))
-    #     lidars = discover_lidars(interface)
-    #     if lidars:
-    #         print(f"Found LiDAR on interface: {interface['name']}")
-    #         exit(0)
-    iface = discovery_real_lidar_interface()
-    print(f"Found LiDAR on interface: {iface}")
+    iface = discovery_live_lidar_interface()
+    if iface is None:
+        print("No LiDAR found.")
+    else:
+        print(f"Found LiDAR on interface: {iface}")
