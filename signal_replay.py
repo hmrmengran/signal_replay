@@ -226,7 +226,6 @@ class SDLCClient:
         self.timeout = timeout
 
     def post_snapshot(self, snap: Snapshot) -> None:
-        # url = f"{self.base_url}/api/v1/signals/phase/snapshot"
         url = f"{self.base_url}/api/v1/signals/snapshot"
         headers = {"Content-Type": "application/json"}
         if self.token:
@@ -296,7 +295,6 @@ class ReplayController:
         self._snap_iter = None
         self._current = None  # 当前 NDJSON 快照
         self._tolerance_ms = 50
-        self._alignment_offset = None  # 可选：自动对齐
 
     def _load_snaps(self, ndjson_path: str):
         snaps = list(iter_ndjson(ndjson_path))
@@ -312,7 +310,6 @@ class ReplayController:
         self._snap_iter = iter(snaps)
         self._current = next(self._snap_iter, None)
         self._tolerance_ms = int(tolerance_ms)
-        self._alignment_offset = None
 
         def on_ts(lidar_ts_ms: int):
             logging.debug("[on_ts]   Lidar ts_ms:%d phase=%s", lidar_ts_ms, self._current.ts_ms)
@@ -325,8 +322,8 @@ class ReplayController:
                 diff = lidar_ts_ms - snap.ts_ms
                 logging.info("[on_ts] Lidar & NDJSON  diff=%dms", diff)
 
-                # if abs(diff) <= self._tolerance_ms:
-                if True:
+                if abs(diff) <= self._tolerance_ms:
+                # if True:
                     # 命中阈值 → 发送并推进
                     if self.dry_run:
                         logging.info("[DRY-RUN][MATCH] NDJSON ts= %d, LiDAR = %d, diff= %d ms, phases= %d", snap.ts_ms, lidar_ts_ms, diff, len(snap.phases))
@@ -555,7 +552,10 @@ def main(argv: Optional[List[str]] = None) -> int:
             logging.error("Failed to discover real LiDAR interface. ")
             return 2
     elif args.lidar_mode == "fake":
-        l2_iface = "vethd85986f"
+        if not args.l2_iface:
+            logging.error("Please specify --l2-iface for fake LiDAR mode.")
+            return 2
+        l2_iface = args.l2_iface
     else:
         logging.error("Please specify --lidar-mode as 'real' or 'fake'.")
         return 2
@@ -565,7 +565,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         iface=l2_iface,
         udp_port=args.lidar_port,
         bpf=args.l2_bpf,
-        sample_rate= 500,
+        sample_rate= 100,
     )
     
     try:
