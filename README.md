@@ -79,9 +79,11 @@ sudo python3 signal_replay.py \
   --base-url http://127.0.0.1:8080 \
   --file phases.ndjson \
   --lidar-mode fake \
+  --fake-subnet 172.30.0.0/24 \
   --lidar-port 8011 \
   --log-level DEBUG 
 ```
+#### --fake-subnet 是 必填 的；程序会调用 discovery_fake_lidar_interface(<subnet>) 自动选择网卡。
 
 或者真实 LiDAR：
 ```bash
@@ -97,18 +99,19 @@ sudo python3 signal_replay.py \
 
 ## 命令行参数说明（`signal_replay.py`）
 
-| 参数 | 说明 |
-|---|---|
-| `--base-url` | **必填**。SDLC 服务地址，如 `http://127.0.0.1:8080` |
-| `--file` | **必填**。待回放的 NDJSON 记录文件路径 |
-| `--speed` | 回放速度倍率（当前实现以 LiDAR 时间为触发，`speed` 预留） |
-| `--token` | 可选的 Bearer Token |
-| `--dry-run` | 只打印将要发送的数据，不实际 POST |
-| `--log-level` | 日志级别：`DEBUG/INFO/WARNING/ERROR` |
-| `--retries` / `--backoff` | 发送失败重试次数与首个回退秒数 |
-| `--lidar-mode` |**必填** `real`（自动发现真实网卡）或 `fake`（自动发现测试子网网卡） |
-| `--lidar-port` |**必填** LiDAR UDP 端口，真实常见为 `2368`，仿真例子为 `8011` |
-| `--l2-bpf` | 自定义 BPF 过滤表达式（默认 `udp and port <lidar-port>`） |
+参数	              是否必填	说明
+--base-url	          是	     SDLC 服务地址，如 http://127.0.0.1:8000
+--file	              是	     待回放的 NDJSON 文件路径
+--speed	              否	回放倍率（占位，实际以 LiDAR 时间触发）
+--token	              否	Bearer Token
+--dry-run	            否	只打印将发送的数据，不实际 POST
+--log-level	          否	DEBUG/INFO/WARNING/ERROR
+--retries / --backoff	否	失败重试次数与首个回退秒数
+--lidar-mode	        是	real 或 fake（自动发现对应网卡）
+--fake-subnet	在 fake 模式下必填	例如 172.30.0.0/24，用于“假 LiDAR”网卡发现
+--lidar-port	        否	LiDAR UDP 端口，默认值 8011
+--l2-bpf	            否	追加 BPF 过滤表达式（默认 udp and port <lidar-port>）
+--l2-iface	          否	当前版本预留/忽略：实际以自动发现的网卡为准
 
 > 代码参考：`parse_args()` 与 `L2PcapTimeSource` 的实现。
 
@@ -130,27 +133,23 @@ sudo python3 signal_replay.py \
 
 ## 权限与常见问题（Troubleshooting）
 
-1. **抓包无数据 / 报错权限不足**  
-   - 用 `sudo` 运行，或给 Python 解释器设置 `cap_net_raw,cap_net_admin`。  
+1. **抓包无数据 / 报错权限不足** 
+   - 用 `sudo` 运行，或给 Python 解释器设置 `cap_net_raw,cap_net_admin`。 
    - 确认机器上安装了 `libpcap`（参考前文系统依赖）。
 
-2. **无法发现“假 LiDAR”**  
-   - 默认只在 `172.30.0.0/24` 子网 + `8011` 端口监听，确保数据源与端口一致；  
-   - 容器/桥接网卡（`veth*` / `br-*`）是否在该子网；  
-   - 可调整 `discover_fake_lidar.py` 中的子网和端口。
+2. **sudo 下报 NameError: name 'threading' is not defined** 
+   - 当你用 sudo 跑时，root 的 Python 环境里 没有安装 scapy，这一行 from scapy.all ... 触发 ImportError，
+   - 于是整个 try 被跳过，threading 也就没有被导入。随后在 ReplayController.__init__ 里用到了 threading.Lock()，
+   - 于是直接 NameError: name 'threading' is not defined。。
 
-3. **NDJSON 被判为无效**  
-   - 查看日志（`--log-level DEBUG`）；  
+3. **无法发现“假 LiDAR”** 
+   - 记得传入 --fake-subnet（例如 172.30.0.0/24）；
+   - 确认容器/桥接网卡确实在该子网，并且端口与 --lidar-port 一致；
+   - 提高日志级别 --log-level DEBUG 查看发现日志。
+
+4. **NDJSON 被判为无效** 
+   - 查看日志（`--log-level DEBUG`）； 
    - 校验 `ts_ms` 类型为 **整型** 毫秒；`veh/ped` 值是否在允许集合内。
-
----
-
-## 开发建议
-
-- 使用 `pytest` 编写单测（对解析和匹配逻辑进行覆盖）；  
-- 使用 `black`/`flake8` 保持风格统一；  
-- 添加 `CHANGELOG.md` 和 `LICENSE`；  
-- 如需跨平台支持，建议在 README 追加 Windows/macOS 注意事项。
 
 ---
 

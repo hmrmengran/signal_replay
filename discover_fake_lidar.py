@@ -8,7 +8,7 @@ import time
 from typing import List, Tuple, Optional
 from typing import Dict
 
-FAKE_SUBNET_DEFAULT = "172.30.0.0/24"  # 你可以改成 172.30.0.0/16 或更具体的 /24
+FAKE_SUBNET_DEFAULT = "172.30.0.0/24"
 
 
 def get_ipaddrs(adapter):
@@ -26,7 +26,7 @@ def get_interfaces():
     return interfaces
 
 def _iface_is_veth(name: str) -> bool:
-    return bool(re.match(r"^veth", name))
+    return True
 
 def _ip_in_subnet(ip: str, subnet_cidr: str) -> bool:
     try:
@@ -109,7 +109,6 @@ def discovery_fake_lidar_interface(
     subnet_cidr: str = FAKE_SUBNET_DEFAULT,
 ) -> Optional[str]:
     """
-    遍历候选(veth* 或落在 subnet_cidr 的）网卡查找 fake LiDAR。
     成功则返回网卡名（如 vethd85986f), 并打印发现的设备信息；失败返回 None。
     """
     interfaces = get_interfaces()

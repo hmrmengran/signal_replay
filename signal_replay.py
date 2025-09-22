@@ -12,6 +12,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Union
 import struct, zlib
+import threading
 
 import ctypes
 
@@ -294,7 +295,7 @@ class ReplayController:
         self.backoff_s = backoff_s
         self._lock = threading.Lock()
         self._snap_iter = None
-        self._current = None  # 当前 NDJSON 快照
+        self._current = None
         self._tolerance_ms = 50
 
     def _load_snaps(self, ndjson_path: str):
@@ -465,7 +466,7 @@ class LidarTimeSource:
     extracts ts_start_us timestamps, and provides them as time source for replay.
     """
     
-    def __init__(self, udp_port: int = 2368, buffer_size: int = 65536, 
+    def __init__(self, udp_port: int = 8011, buffer_size: int = 65536, 
                  bind_addr: str = "0.0.0.0", timeout: float = 1.0):
         self.udp_port = udp_port
         self.buffer_size = buffer_size
@@ -514,8 +515,9 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     p.add_argument("--backoff", type=float, default=0.75, help="Initial backoff seconds for retries")
     
     # LiDAR-related options
-    p.add_argument("--lidar-mode", choices=["real", "fake"], help="Choose lidar mode: 'real' = auto-discover real lidar NIC, 'fake' = loopback lo")
-    p.add_argument("--lidar-port", type=int, default=2368, help="UDP port for LiDAR data (default: 2368)")
+    p.add_argument("--lidar-mode", choices=["real", "fake"], help="Choose lidar mode: 'real' = auto-discover real lidar NIC, 'fake' = discover on specified subnet")
+    p.add_argument("--fake-subnet", help="Required when --lidar-mode=fake, e.g. 172.16.210.0/24")
+    p.add_argument("--lidar-port", type=int, default=8011, help="UDP port for LiDAR data (default: 8011)")
     
     # L2 capture options
     p.add_argument("--l2-iface", help="Network interface for L2 packet capture (e.g., eth0)")
@@ -553,7 +555,10 @@ def main(argv: Optional[List[str]] = None) -> int:
             logging.error("Failed to discover real LiDAR interface. ")
             return 2
     elif args.lidar_mode == "fake":
-        l2_iface = discovery_fake_lidar_interface()
+        if not args.fake_subnet:
+            logging.error("Please specify --fake-subnet (e.g. 172.16.210.0/24) when --lidar-mode=fake.")
+            return 2
+        l2_iface = discovery_fake_lidar_interface(args.fake_subnet)
         if not l2_iface:
             logging.error("Failed to discover fake LiDAR interface. ")
             return 2
