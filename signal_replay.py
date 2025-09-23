@@ -314,7 +314,7 @@ class ReplayController:
         self._tolerance_ms = int(tolerance_ms)
 
         def on_ts(lidar_ts_ms: int):
-            logging.debug("[on_ts]   Lidar ts_ms:%d phase=%s", lidar_ts_ms, self._current.ts_ms)
+            logging.debug("[on_ts]   Lidar ts_ms:%d", lidar_ts_ms)
             with self._lock:
                 if self._current is None:
                     logging.debug("All snapshots sent, ignoring further LiDAR timestamps.")
@@ -330,6 +330,7 @@ class ReplayController:
                     if self.dry_run:
                         logging.info("[DRY-RUN][MATCH] NDJSON ts= %d, LiDAR = %d, diff= %d ms, phases= %d", snap.ts_ms, lidar_ts_ms, diff, len(snap.phases))
                     else:
+                        logging.info("[MATCH] NDJSON ts= %d, LiDAR = %d, diff= %d ms, phases= %d", snap.ts_ms, lidar_ts_ms, diff, len(snap.phases))
                         self._send_with_retry(snap)
                     self._current = next(self._snap_iter, None)
                     return
