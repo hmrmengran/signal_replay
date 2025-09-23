@@ -76,7 +76,7 @@ sudo python3 discover_fake_lidar.py
 ```bash
 # 假 LiDAR 模式（默认端口 8011），回放 phases.ndjson 到本地 SDLC
 sudo python3 signal_replay.py \
-  --base-url http://127.0.0.1:8080 \
+  --base-url http://127.0.0.1:8000 \
   --file phases.ndjson \
   --lidar-mode fake \
   --fake-subnet 172.30.0.0/24 \
@@ -88,7 +88,7 @@ sudo python3 signal_replay.py \
 或者真实 LiDAR：
 ```bash
 sudo python3 signal_replay.py \
-  --base-url http://127.0.0.1:8080 \
+  --base-url http://127.0.0.1:8000 \
   --file phases.ndjson \
   --lidar-mode real \
   --lidar-port 8011 \
