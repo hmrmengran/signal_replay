@@ -101,7 +101,7 @@ sudo python3 signal_replay.py \
 ---
 
 ## 命令行参数说明（`signal_replay.py`）
-
+```bash
 参数	              是否必填	说明
 --base-url	          是	     SDLC 服务地址，如 http://127.0.0.1:8000
 --file	              是	     待回放的 NDJSON 文件路径
@@ -120,7 +120,7 @@ sudo python3 signal_replay.py \
 --prologue-phases	    否	前置帧相位模板或 none 发送空帧
 
 > 代码参考：`parse_args()` 与 `L2PcapTimeSource` 的实现。
-
+```
 ---
 
 ## NDJSON 格式
@@ -143,6 +143,7 @@ sudo python3 signal_replay.py \
 docker build -t signal-replay:latest .
 
 # 运行（需要抓包权限）
+```bash
 docker run --rm -it \
   --network host \
   --cap-add NET_RAW \
@@ -155,6 +156,7 @@ docker run --rm -it \
   --lidar-mode fake
 
 --net=host 与 --cap-add NET_* 在容器里抓包通常必需；根据你的 Dockerfile/基础镜像适当调整。
+```
 
 ## 权限与常见问题（Troubleshooting）
 
