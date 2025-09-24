@@ -15,8 +15,11 @@
 ```
 ├── discover_fake_lidar.py
 ├── discover_live_lidar.py
+├── Dockerfile
 ├── phases.ndjson
 ├── README.md
+├── recordings-000001.ndjson
+├── requirements.txt
 └── signal_replay.py
 ```
 
@@ -112,6 +115,9 @@ sudo python3 signal_replay.py \
 --lidar-port	        否	LiDAR UDP 端口，默认值 8011
 --l2-bpf	            否	追加 BPF 过滤表达式（默认 udp and port <lidar-port>）
 --l2-iface	          否	当前版本预留/忽略：实际以自动发现的网卡为准
+--prologue-empty	    否	启用前置帧
+--prologue-offset-ms	否	前置帧相对首帧时间的偏移（默认 -1）
+--prologue-phases	    否	前置帧相位模板或 none 发送空帧
 
 > 代码参考：`parse_args()` 与 `L2PcapTimeSource` 的实现。
 
@@ -130,6 +136,25 @@ sudo python3 signal_replay.py \
 - `ped` 取值：`NA/WALK/DONT_WALK`
 
 ---
+
+## Docker 运行（可选）
+
+# 构建
+docker build -t signal-replay:latest .
+
+# 运行（需要抓包权限）
+docker run --rm -it \
+  --network host \
+  --cap-add NET_RAW \
+  --cap-add NET_ADMIN \
+  -v "$(pwd)/phases.ndjson:/app/phases.ndjson:ro" \
+  signal-replay:latest \
+  --base-url http://172.16.210.49:8000 \
+  --file /app/phases.ndjson \
+  --lidar-port 8011 \
+  --lidar-mode fake
+
+--net=host 与 --cap-add NET_* 在容器里抓包通常必需；根据你的 Dockerfile/基础镜像适当调整。
 
 ## 权限与常见问题（Troubleshooting）
 

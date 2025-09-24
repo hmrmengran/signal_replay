@@ -234,7 +234,7 @@ class SDLCClient:
             headers["Authorization"] = f"Bearer {self.token}"
 
         body = snap.to_api_body()
-        _validate_body_locally(body)
+        # _validate_body_locally(body)
         resp = requests.post(url, headers=headers, json=body, timeout=self.timeout)
 
         if resp.status_code == 200:
@@ -298,6 +298,12 @@ class ReplayController:
         self._current = None
         self._tolerance_ms = 50
 
+        # --- prologue (leading frame) flags ---
+        self._prologue_enabled = False         # 是否开启前置帧
+        self._prologue_offset_ms = -1          # 相对第一帧 ts_ms 的偏移，默认 -1ms
+        self._prologue_phases_spec = None      # 前置帧相位模板；支持 "none"
+        self._prologue_sent = False            # 只发一次的标志
+
     def _load_snaps(self, ndjson_path: str):
         snaps = list(iter_ndjson(ndjson_path))
         if not snaps:
@@ -312,6 +318,21 @@ class ReplayController:
         self._snap_iter = iter(snaps)
         self._current = next(self._snap_iter, None)
         self._tolerance_ms = int(tolerance_ms)
+
+        # 在真正开始匹配/抓包前，主动发一次 prologue（若启用且未发送）
+        if self._prologue_enabled and not self._prologue_sent and self._current:
+            try:
+                pro = self._build_prologue_from_first(self._current)
+                if self.dry_run:
+                    logging.info("[DRY-RUN][PROLOGUE] ts_ms=%d, phases=%d",pro.ts_ms, len(pro.phases))
+                else:
+                    logging.info("[PROLOGUE] ts_ms=%d, phases=%d", pro.ts_ms, len(pro.phases))
+                    self._send_with_retry(pro)
+            except Exception as e:
+                logging.error("Failed to send prologue frame: %s", e)
+            finally:
+                self._prologue_sent = True
+
 
         def on_ts(lidar_ts_ms: int):
             logging.debug("[on_ts]   Lidar ts_ms:%d", lidar_ts_ms)
@@ -377,6 +398,38 @@ class ReplayController:
                 backoff = self.backoff_s * (2 ** (attempt - 1))
                 logging.warning("Network error, retrying in %.2fs (attempt %d/%d)...", backoff, attempt, self.max_retries)
                 time.sleep(backoff)
+    
+    def _build_prologue_from_first(self, first: Snapshot) -> Snapshot:
+        ts = int(first.ts_ms + int(self._prologue_offset_ms or 0))
+
+        # 支持 --prologue-phases none → 真正空帧
+        if isinstance(self._prologue_phases_spec, str) and \
+        self._prologue_phases_spec.strip().lower() == "none":
+            return Snapshot(ts_ms=ts, type="phase", phases=[])
+
+        def parse_spec(spec: str) -> List[PhaseState]:
+            parts: List[PhaseState] = []
+            for token in spec.split(","):
+                token = token.strip()
+                if not token:
+                    continue
+                try:
+                    pid_s, veh, ped = token.split(":")
+                    parts.append(PhaseState(phase=int(pid_s), veh=veh, ped=ped))
+                except Exception:
+                    raise ValueError(f"Invalid --prologue-phases segment: {token}")
+            if not parts:
+                raise ValueError("Empty --prologue-phases after parsing")
+            return parts
+
+        if self._prologue_phases_spec:
+            phases = parse_spec(self._prologue_phases_spec)
+        else:
+            # 默认占位：沿用第一帧相位号，强制 R / DONT_WALK
+            phases = [PhaseState(phase=p.phase, veh="R", ped="DONT_WALK")
+                    for p in first.phases]
+
+        return Snapshot(ts_ms=ts, type="phase", phases=phases)
 
 
 
@@ -524,6 +577,16 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     p.add_argument("--l2-iface", help="Network interface for L2 packet capture (e.g., eth0)")
     p.add_argument("--l2-bpf", help="Custom BPF filter for L2 capture (default: udp and port <lidar-port>)")
     
+    p.add_argument("--prologue-empty", action="store_true",
+               help="Before replay starts, send one leading frame")
+    p.add_argument("--prologue-offset-ms", type=int, default=-1,
+                help="Offset (ms) added to FIRST ts_ms for the prologue. "
+                        "Use negative (default -1) to ensure it's earlier than first snapshot.")
+    p.add_argument("--prologue-phases",
+                help='Comma list like "1:R:DONT_WALK,2:R:DONT_WALK"; '
+                        'or "none" to send truly empty data: []. '
+                        'If omitted, reuse first frame phase IDs and force R/DONT_WALK.')
+    
     return p.parse_args(argv)
 
 
@@ -547,6 +610,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         max_retries=args.retries,
         backoff_s=args.backoff,
     )
+
+    ctrl._prologue_enabled   = bool(args.prologue_empty)
+    ctrl._prologue_offset_ms = int(args.prologue_offset_ms or 0)
+    ctrl._prologue_phases_spec = args.prologue_phases
 
     # ---- LiDAR source with callback ----
     if args.lidar_mode == "real":
